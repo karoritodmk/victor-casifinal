@@ -10,14 +10,6 @@ class ProgramaService:
     def __init__(self, db: Session):
         self.db = db
 
-    def _validar_coordinacion(self, id_coordinacion: int):
-        existe = self.db.query(Coordinacion).filter(Coordinacion.id_coordinacion == id_coordinacion).first()
-        if not existe:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"La coordinación con id {id_coordinacion} no existe.",
-            )
-
     def crear_programa(self, programa_in: ProgramaCreate):
         existe = self.db.query(Programa).filter(Programa.nombre == programa_in.nombre).first()
         if existe:
@@ -30,9 +22,6 @@ class ProgramaService:
         self.db.commit()
         self.db.refresh(nuevo_programa)
         return nuevo_programa
-
-    def obtener_programas(self):
-        return self.db.query(Programa).all()
 
     def obtener_programa_por_id(self, id_programa: int):
         programa = self.db.query(Programa).filter(Programa.id_programa == id_programa).first()
@@ -59,8 +48,11 @@ class ProgramaService:
 
     def eliminar_programa(self, id_programa: int):
         programa = self.obtener_programa_por_id(id_programa)
+        url_archivo = programa.archivo_url
         self.db.delete(programa)
         self.db.commit()
+        if url_archivo:
+            borrar_adjunto(url_archivo)  # no dejar el documento huérfano en disco
         return {"mensaje": "Programa eliminado exitosamente."}
 
 

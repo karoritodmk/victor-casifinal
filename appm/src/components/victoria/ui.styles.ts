@@ -260,6 +260,9 @@ export const styles = StyleSheet.create({
   pillButtonLight: {
     backgroundColor: VictoriaColors.mutedGreen,
   },
+  pillButtonDanger: {
+    backgroundColor: '#9b2c2c',
+  },
   pillButtonTextDark: {
     color: VictoriaColors.white,
     fontSize: 12,

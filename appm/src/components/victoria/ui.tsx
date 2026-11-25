@@ -258,20 +258,23 @@ export function PillButton({
 }: {
   label: string;
   icon?: keyof typeof Ionicons.glyphMap;
-  variant?: 'dark' | 'light';
+  variant?: 'dark' | 'light' | 'danger';
   onPress?: () => void;
   href?: string;
 }) {
+  const claro = variant === 'light';
   const content = (
     <>
       {icon ? (
         <Ionicons
           name={icon}
-          size={13}
-          color={variant === 'dark' ? VictoriaColors.white : VictoriaColors.textOnLight}
+          size={15}
+          color={
+              variant === 'danger' ? '#ffd7d7' : claro ? VictoriaColors.textOnLight : VictoriaColors.white
+          }
         />
       ) : null}
-      <Text style={variant === 'dark' ? styles.pillButtonTextDark : styles.pillButtonTextLight}>
+      <Text style={claro ? styles.pillButtonTextLight : styles.pillButtonTextDark}>
         {icon ? '  ' : ''}
         {label}
       </Text>
@@ -282,7 +285,10 @@ export function PillButton({
     return (
       <Link
         href={href as never}
-        style={[styles.pillButton, variant === 'dark' ? styles.pillButtonDark : styles.pillButtonLight]}>
+        style={[
+        styles.pillButton,
+        variant === 'dark' ? styles.pillButtonDark : variant === 'danger' ? styles.pillButtonDanger : styles.pillButtonLight,
+      ]}>
         {content}
       </Link>
     );
@@ -290,7 +296,10 @@ export function PillButton({
 
   return (
     <Pressable
-      style={[styles.pillButton, variant === 'dark' ? styles.pillButtonDark : styles.pillButtonLight]}
+      style={[
+        styles.pillButton,
+        variant === 'dark' ? styles.pillButtonDark : variant === 'danger' ? styles.pillButtonDanger : styles.pillButtonLight,
+      ]}
       onPress={onPress}>
       {content}
     </Pressable>

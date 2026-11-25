@@ -99,6 +99,11 @@ class ProgramaSedeResponse(BaseModel):
     nombre: str
     descripcion: Optional[str] = None
     nivel_formacion: Optional[str] = None
+    url_programa: Optional[str] = None
+    id_coordinacion: Optional[int] = None
+    # Documento adjunto (PDF/Word); se sube aparte en POST /api/programas/{id}/archivo
+    archivo_url: Optional[str] = None
+    archivo_nombre: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -116,6 +121,8 @@ class ProgramaSedeCreate(BaseModel):
     descripcion: Optional[str] = Field(default=None, max_length=300)
     nivel_formacion: Optional[str] = Field(default=None, max_length=20)
     url_programa: Optional[str] = Field(default=None, max_length=200)
+    # Opcional: si no viaja, el servidor la resuelve (ver _resolver_coordinacion).
+    id_coordinacion: Optional[int] = Field(default=None, ge=1)
 
     # ESCUDO ANTI-XSS en todos los campos de texto libre.
     @field_validator("nombre", "descripcion", "nivel_formacion", "url_programa")

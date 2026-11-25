@@ -110,10 +110,6 @@ export function VictoriaNavbar({
   const activeTabRef = useRef<View>(null);
   const centralNavRef = useRef<View>(null);
 
-  // En el rol COORDINADOR las pestañas inactivas muestran solo el icono; el
-  // texto aparece únicamente en la pestaña de la pantalla actual.
-  const soloIconosInactivos = tabs === TABS_COORDINADOR;
-
   useEffect(() => {
     let cancelado = false;
     obtenerPerfil().then((perfil) => {
@@ -217,10 +213,12 @@ export function VictoriaNavbar({
               style={[styles.menuTabItem, active && styles.menuTabItemActive]}>
               <Ionicons
                 name={tab.icon}
-                size={15}
+                size={19}
                 color={active ? VictoriaColors.white : 'rgba(255,255,255,0.6)'}
               />
-              {active || !soloIconosInactivos ? (
+              {/* En todos los roles solo la pestaña activa muestra el texto;
+                  las demás muestran únicamente el icono. */}
+              {active ? (
                 <Text style={[styles.menuTabText, active && styles.menuTabTextActive]}>
                   {'  ' + tab.label}
                 </Text>

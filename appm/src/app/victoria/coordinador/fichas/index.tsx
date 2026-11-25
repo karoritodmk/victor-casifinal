@@ -47,6 +47,8 @@ export default function CoordinadorFichasGeneralScreen() {
               jornada: jornadaDeHorario(horario),
               fecha_inicio: f.fecha_inicio,
               fecha_fin: f.fecha_fin,
+              archivo_url: f.archivo_url ?? null,
+              archivo_nombre: f.archivo_nombre ?? null,
             };
           })
         );

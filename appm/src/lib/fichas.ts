@@ -1,6 +1,7 @@
 import { API_BASE_URL } from '@/lib/api-config';
 import { getToken } from '@/lib/auth';
-import { mensajeDeError } from '@/lib/api-error';
+import { mensajeDeError, mensajeDeRespuesta } from '@/lib/api-error';
+import { DocumentoElegido, subirDocumento } from '@/lib/documentos';
 
 /** Refleja schemas/ficha.py::FichaResponse. No hay "nombre de ficha" en la
  * BD: el número que ves en el diseño ("Ficha 3407169") ES el id_ficha. */
@@ -12,6 +13,10 @@ export type Ficha = {
   id_programa?: number;
   trimestre: string | null;
   id_director: number | null;
+  horario?: string | null;
+  /** Documento adjunto (PDF o Word). */
+  archivo_url?: string | null;
+  archivo_nombre?: string | null;
 };
 
 export type FichaInput = {
@@ -22,6 +27,7 @@ export type FichaInput = {
   id_programa?: number;
   trimestre?: string;
   id_director?: number;
+  horario?: string;
 };
 
 async function authHeaders(json = true): Promise<Record<string, string>> {
@@ -76,5 +82,23 @@ export async function eliminarFicha(id: number): Promise<void> {
     method: 'DELETE',
     headers: await authHeaders(false),
   });
-  if (!r.ok) throw new Error('No se pudo eliminar la ficha.');
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    throw new Error(mensajeDeRespuesta(r.status, d.detail, 'No se pudo eliminar la ficha.'));
+  }
+}
+
+/** Adjunta (o reemplaza) el documento PDF/Word de una ficha. */
+export function subirArchivoFicha(id: number, archivo: DocumentoElegido): Promise<Ficha> {
+  return subirDocumento<Ficha>(`/api/fichas/${id}/archivo`, archivo, 'No se pudo subir el documento de la ficha.');
+}
+
+export async function quitarArchivoFicha(id: number): Promise<Ficha> {
+  const r = await fetch(`${API_BASE_URL}/api/fichas/${id}/archivo`, {
+    method: 'DELETE',
+    headers: await authHeaders(false),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(mensajeDeRespuesta(r.status, d.detail, 'No se pudo quitar el documento.'));
+  return d;
 }

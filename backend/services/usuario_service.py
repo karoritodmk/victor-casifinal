@@ -25,6 +25,10 @@ def eliminar_usuario(db: Session, id_usuario: int):
     """Busca un usuario por su ID y lo elimina."""
     db_usuario = db.query(models.Usuario).filter(models.Usuario.id_usuario == id_usuario).first()
     if db_usuario:
+        # Nota.id_usuario no tiene ON DELETE: sin borrar antes sus notas
+        # personales, Postgres rechaza el borrado del usuario.
+        from models.nota import Nota
+        db.query(Nota).filter(Nota.id_usuario == id_usuario).delete(synchronize_session=False)
         db.delete(db_usuario)
         db.commit()
         return True

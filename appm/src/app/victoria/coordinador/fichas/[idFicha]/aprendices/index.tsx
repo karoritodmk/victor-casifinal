@@ -1,17 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AprendicesCargaModal } from '@/components/victoria/aprendices-carga-modal';
 import { styles } from '@/components/victoria/aprendices-ficha.styles';
 import { AprendizFormModal } from '@/components/victoria/aprendiz-form-modal';
+import { ConfirmarEliminarModal } from '@/components/victoria/confirmar-eliminar-modal';
 import { styles as modalStyles } from '@/components/victoria/aprendiz-modales.styles';
 import { VictoriaScreenShell } from '@/components/victoria/screen-shell';
 import { useVictoriaToast } from '@/components/victoria/toast';
 import { ExitButton, PaneHeader, SearchPill } from '@/components/victoria/ui';
 import { VictoriaColors } from '@/constants/victoria-theme';
-import { obtenerAprendicesDeFicha, type Usuario } from '@/lib/aprendices';
+import { eliminarAprendiz, obtenerAprendicesDeFicha, type Usuario } from '@/lib/aprendices';
 import { type Ficha, obtenerFicha } from '@/lib/fichas';
 import { obtenerProgramas } from '@/lib/programas';
 import { useRoleGuard } from '@/lib/role-guard';
@@ -37,6 +38,7 @@ export default function CoordinadorAprendicesFichaScreen() {
   const { idFicha } = useLocalSearchParams<{ idFicha: string }>();
   const idFichaNum = Number(idFicha);
   const { mostrarExito } = useVictoriaToast();
+  const [aprendizPorEliminar, setAprendizPorEliminar] = useState<Aprendiz | null>(null);
 
   const [aprendices, setAprendices] = useState<Aprendiz[] | null>(null);
   const [ficha, setFicha] = useState<Ficha | null>(null);
@@ -231,11 +233,47 @@ export default function CoordinadorAprendicesFichaScreen() {
                     <Text style={modalStyles.submitText}>Ver portafolio</Text>
                   </View>
                 </Pressable>
+
+                <Pressable
+                  style={extra.eliminar}
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setAprendizPorEliminar(seleccionado);
+                    setSeleccionado(null);
+                  }}>
+                  <View style={modalStyles.submitRow}>
+                    <Ionicons name="trash-outline" size={16} color={VictoriaColors.white} />
+                    <Text style={modalStyles.submitText}>Eliminar aprendiz</Text>
+                  </View>
+                </Pressable>
               </ScrollView>
             ) : null}
           </Pressable>
         </Pressable>
       </Modal>
+
+      <ConfirmarEliminarModal
+        visible={aprendizPorEliminar !== null}
+        titulo={`¿Eliminar a ${aprendizPorEliminar ? nombreCompleto(aprendizPorEliminar) : ''}?`}
+        mensaje="Se eliminará su cuenta junto con sus entregas, notas y notificaciones. Esta acción no se puede deshacer."
+        onCancelar={() => setAprendizPorEliminar(null)}
+        onConfirmar={async () => {
+          if (!aprendizPorEliminar) return;
+          await eliminarAprendiz(aprendizPorEliminar.id_usuario);
+          mostrarExito('Aprendiz eliminado');
+          cargar();
+        }}
+      />
     </VictoriaScreenShell>
   );
 }
+
+const extra = StyleSheet.create({
+  eliminar: {
+    backgroundColor: '#9b2c2c',
+    borderRadius: 50,
+    paddingVertical: 15,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+});

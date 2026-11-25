@@ -91,4 +91,43 @@ export const styles = StyleSheet.create({
   submitDisabled: { opacity: 0.6 },
   submitRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   submitText: { color: VictoriaColors.white, fontSize: 15, fontWeight: '600' },
+  inputBloqueado: {
+    opacity: 0.6,
+  },
+  docRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.55)',
+    borderWidth: 1,
+    borderColor: 'rgba(28, 53, 45, 0.15)',
+    borderRadius: 24,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+  },
+  docName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1c352d',
+  },
+  docMeta: {
+    fontSize: 11,
+    color: '#1c352d',
+    opacity: 0.75,
+  },
+  dropzone: {
+    backgroundColor: 'rgba(255, 255, 255, 0.55)',
+    borderWidth: 1,
+    borderColor: 'rgba(28, 53, 45, 0.15)',
+    borderRadius: 24,
+    paddingVertical: 18,
+    alignItems: 'center',
+    gap: 6,
+  },
+  dropzoneText: {
+    fontSize: 13,
+    color: '#1c352d',
+    textAlign: 'center',
+    paddingHorizontal: 12,
+  },
 });

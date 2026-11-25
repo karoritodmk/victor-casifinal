@@ -557,6 +557,19 @@ class CoordinadorService:
         self.db.flush()  # obtiene el id; el commit lo hace crear_programa_sede
         return general.id_coordinacion
 
+    def _validar_coordinacion_existe(self, id_coordinacion: int) -> int:
+        existe = (
+            self.db.query(Coordinacion.id_coordinacion)
+            .filter(Coordinacion.id_coordinacion == id_coordinacion)
+            .first()
+        )
+        if not existe:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"La coordinación con id {id_coordinacion} no existe.",
+            )
+        return id_coordinacion
+
     def crear_programa_sede(self, id_sede: int, datos: ProgramaSedeCreate, coordinador: Usuario) -> Programa:
         self.obtener_sede_por_id(id_sede)  # 404 si la sede no existe
 
@@ -577,7 +590,12 @@ class CoordinadorService:
             nivel_formacion=datos.nivel_formacion,
             # url_programa es NOT NULL en la tabla; si no se envía, queda vacía.
             url_programa=datos.url_programa or "",
-            id_coordinacion=self._resolver_coordinacion(coordinador),
+            # La elegida en el formulario; si no eligió ninguna, la resuelve el servidor.
+            id_coordinacion=(
+                self._validar_coordinacion_existe(datos.id_coordinacion)
+                if datos.id_coordinacion
+                else self._resolver_coordinacion(coordinador)
+            ),
             id_sede=id_sede,
         )
         self.db.add(nuevo)
@@ -626,6 +644,8 @@ class CoordinadorService:
         if "url_programa" in enviados:
             # NOT NULL en la tabla: vacío, nunca None.
             programa.url_programa = datos.url_programa or ""
+        if datos.id_coordinacion:
+            programa.id_coordinacion = self._validar_coordinacion_existe(datos.id_coordinacion)
 
         self.db.commit()
         self.db.refresh(programa)

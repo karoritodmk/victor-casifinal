@@ -19,6 +19,10 @@ class Ficha(Base):
     # Lun-Vie 7am-1pm". Aportado por la carpeta de coordinación.
     horario = Column(String(100), nullable=True)
 
+    # Documento adjunto de la ficha (PDF o Word).
+    archivo_url = Column(String(300), nullable=True)
+    archivo_nombre = Column(String(200), nullable=True)
+
     # use_alter=True + name=...: hay dependencia circular real entre
     # 'ficha' y 'programa' (Ficha.id_programa <-> Programa.id_ficha).
     # SQLAlchemy crea la columna primero y añade la FK después con ALTER

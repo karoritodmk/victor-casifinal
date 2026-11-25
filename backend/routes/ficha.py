@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from typing import List
@@ -41,7 +41,14 @@ def obtener_ficha(id_ficha: int, db: Session = Depends(get_db), usuario_actual: 
 
 @router.put("/{id_ficha}", response_model=FichaResponse, dependencies=[Depends(require_gestion_ficha)])
 def actualizar_ficha(id_ficha: int, data: FichaCreate, db: Session = Depends(get_db)):
-    return FichaService(db).actualizar_ficha(id_ficha, data)
+    # El número de ficha es la llave primaria y no se puede cambiar al editar.
+    if data.id_ficha != id_ficha:
+        raise HTTPException(status_code=400, detail="El número de la ficha no se puede modificar.")
+    try:
+        return FichaService(db).actualizar_ficha(id_ficha, data)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="El programa o el director indicado no existe.")
 
 
 @router.delete("/{id_ficha}", dependencies=[Depends(require_coordinador)])
@@ -52,3 +59,15 @@ def eliminar_ficha(id_ficha: int, db: Session = Depends(get_db)):
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=400, detail="No se puede eliminar: todavía hay un programa que apunta a esta ficha.")
+
+
+
+@router.post("/{id_ficha}/archivo", response_model=FichaResponse, dependencies=[Depends(require_coordinador)])
+async def subir_archivo_ficha(id_ficha: int, archivo: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Adjunta o reemplaza el documento (PDF/Word) de la ficha."""
+    return await FichaService(db).adjuntar_archivo(id_ficha, archivo)
+
+
+@router.delete("/{id_ficha}/archivo", response_model=FichaResponse, dependencies=[Depends(require_coordinador)])
+def quitar_archivo_ficha(id_ficha: int, db: Session = Depends(get_db)):
+    return FichaService(db).quitar_archivo(id_ficha)

@@ -469,6 +469,7 @@ export interface ComentarioRecibido {
   id_comentario: number | string;
   texto: string;
   fecha_creacion: string;
+  id_autor: number | null;
   nombre_autor: string;
 }
 
@@ -480,13 +481,17 @@ export class InstructorApiError extends Error {
 }
 
 export async function obtenerMisComentarios(): Promise<ComentarioRecibido[]> {
-  // Reemplaza esta URL con la ruta real de tu API de FastAPI
-  const response = await fetch('https://tu-api.com/api/instructor/comentarios', {
-    headers: {
-      // Agrega tu token de autenticación si lo requieres
-      'Authorization': 'Bearer TU_TOKEN',
-    }
-  });
+  const token = await getToken();
+  if (!token) throw new InstructorApiError('Debes iniciar sesión de nuevo.');
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api/instructor/comentarios`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    throw new InstructorApiError('No se pudo conectar con el servidor.');
+  }
 
   if (!response.ok) {
     throw new InstructorApiError('Error al obtener los comentarios.');

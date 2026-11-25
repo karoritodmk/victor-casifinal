@@ -1,14 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { ConfirmarEliminarModal } from '@/components/victoria/confirmar-eliminar-modal';
+import { HojaVidaModal, nombreDeHojaVida } from '@/components/victoria/hoja-vida-modal';
 import { styles } from '@/components/victoria/instructor-perfil.styles';
 import { VictoriaScreenShell } from '@/components/victoria/screen-shell';
 import { useVictoriaToast } from '@/components/victoria/toast';
 import { ExitButton, FloatingActionPill } from '@/components/victoria/ui';
 import { VictoriaColors } from '@/constants/victoria-theme';
-import { urlAbsoluta } from '@/lib/documentos';
+import { elegirDocumento } from '@/lib/documentos';
+import { eliminarInstructor } from '@/lib/instructores';
 import {
   actualizarContratoInstructor,
   type ComentarioInstructor,
@@ -17,6 +20,7 @@ import {
   type InstructorPerfil,
   obtenerComentariosInstructor,
   obtenerPerfilInstructor,
+  subirHojaVidaInstructor,
   TIPOS_CONTRATO,
 } from '@/lib/instructor-perfil';
 import { useRoleGuard } from '@/lib/role-guard';
@@ -89,6 +93,7 @@ export default function CoordinadorInstructorPerfilScreen() {
   const [instructor, setInstructor] = useState<InstructorPerfil | null>(null);
   const [comentarios, setComentarios] = useState<ComentarioInstructor[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
 
   // Contrato
   const [tipo, setTipo] = useState('');
@@ -97,6 +102,11 @@ export default function CoordinadorInstructorPerfilScreen() {
   const [guardandoContrato, setGuardandoContrato] = useState(false);
   const [exitoContrato, setExitoContrato] = useState(false);
   const [errorContrato, setErrorContrato] = useState<string | null>(null);
+
+  // Hoja de vida
+  const [verHoja, setVerHoja] = useState(false);
+  const [subiendoHoja, setSubiendoHoja] = useState(false);
+  const [errorHoja, setErrorHoja] = useState<string | null>(null);
 
   // Comentarios
   const [texto, setTexto] = useState('');
@@ -171,6 +181,28 @@ export default function CoordinadorInstructorPerfilScreen() {
     }
   }
 
+  // Sirve para "Adjuntar hoja de vida" (no hay ninguna) y "Reemplazar hoja de vida".
+  async function elegirYSubirHoja() {
+    if (subiendoHoja) return;
+    setErrorHoja(null);
+    try {
+      const archivo = await elegirDocumento();
+      if (!archivo) return; // canceló
+      setSubiendoHoja(true);
+      const nueva = await subirHojaVidaInstructor(idNum, archivo);
+      setInstructor((prev) =>
+        prev ? { ...prev, hoja_vida_url: nueva.hoja_vida_url, hoja_vida_nombre: nueva.hoja_vida_nombre } : prev
+      );
+      mostrarExito('Hoja de vida actualizada correctamente');
+    } catch (err: any) {
+      const mensaje = err?.message ?? 'No se pudo subir la hoja de vida.';
+      setErrorHoja(mensaje);
+      mostrarError(mensaje);
+    } finally {
+      setSubiendoHoja(false);
+    }
+  }
+
   async function enviarComentario() {
     const limpio = texto.trim();
     if (!limpio) {
@@ -196,6 +228,8 @@ export default function CoordinadorInstructorPerfilScreen() {
   }
 
   const total = comentarios?.length ?? 0;
+  const nombreHojaCompleto = nombreDeHojaVida(instructor?.hoja_vida_url, instructor?.hoja_vida_nombre);
+  const nombreHojaVisible = nombreHojaCompleto ? nombreHojaCompleto.replace(/\.[^.]+$/, '') : null;
 
   return (
     <VictoriaScreenShell>
@@ -241,20 +275,6 @@ export default function CoordinadorInstructorPerfilScreen() {
                 <Text style={styles.datoEtiqueta}>Especialidad:</Text>
                 <Text style={styles.datoValor}>{instructor.especialidad || 'No registrada'}</Text>
               </View>
-              {instructor.hoja_vida_url ? (
-                <View style={styles.dato}>
-                  <Ionicons name="document-text-outline" size={18} color="#556b5c" />
-                  <Text style={styles.datoEtiqueta}>Hoja de vida:</Text>
-                  <View style={styles.hojaVida}>
-                    <Pressable
-                      style={styles.chipLink}
-                      onPress={() => Linking.openURL(urlAbsoluta(instructor.hoja_vida_url as string))}>
-                      <Ionicons name="eye-outline" size={13} color={VictoriaColors.white} />
-                      <Text style={styles.chipLinkTexto}>Ver</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ) : null}
 
               <View style={styles.divider} />
 
@@ -281,6 +301,36 @@ export default function CoordinadorInstructorPerfilScreen() {
                   setAbierto(null);
                 }}
               />
+              {instructor.hoja_vida_url ? (
+                // Con hoja de vida: queda el nombre del archivo; al tocarlo se abre la vista previa.
+                <Pressable style={styles.hojaVidaPill} onPress={() => setVerHoja(true)} accessibilityRole="button">
+                  <Ionicons name="document-text-outline" size={18} color={VictoriaColors.darkGreen} />
+                  <Text style={styles.hojaVidaPillTexto} numberOfLines={1}>
+                    {nombreHojaVisible}
+                  </Text>
+                  <Ionicons name="eye-outline" size={16} color={VictoriaColors.darkGreen} />
+                </Pressable>
+              ) : (
+                // Sin hoja de vida: botoncito para adjuntarla. Al subirse desaparece.
+                <View style={styles.adjuntarBloque}>
+                  <Pressable
+                    style={[styles.botonAdjuntar, subiendoHoja && styles.botonDeshabilitado]}
+                    onPress={elegirYSubirHoja}
+                    disabled={subiendoHoja}
+                    accessibilityRole="button">
+                    {subiendoHoja ? (
+                      <ActivityIndicator color={VictoriaColors.darkGreen} size="small" />
+                    ) : (
+                      <Ionicons name="cloud-upload-outline" size={16} color={VictoriaColors.darkGreen} />
+                    )}
+                    <Text style={styles.botonAdjuntarTexto}>
+                      {subiendoHoja ? 'Subiendo…' : 'Adjuntar hoja de vida'}
+                    </Text>
+                  </Pressable>
+                  <Text style={styles.ayuda}>PDF o Word, máximo 15 MB.</Text>
+                </View>
+              )}
+              {errorHoja ? <Text style={styles.errorForm}>{errorHoja}</Text> : null}
               {errorContrato ? <Text style={styles.errorForm}>{errorContrato}</Text> : null}
               <Pressable
                 style={[
@@ -394,7 +444,55 @@ export default function CoordinadorInstructorPerfilScreen() {
         </View>
       ) : null}
 
+      {instructor ? (
+        <Pressable style={extra.eliminar} onPress={() => setConfirmandoEliminar(true)} accessibilityRole="button">
+          <Ionicons name="trash-outline" size={16} color="#ffffff" />
+          <Text style={extra.eliminarTexto}>Eliminar instructor</Text>
+        </Pressable>
+      ) : null}
+
+      <ConfirmarEliminarModal
+        visible={confirmandoEliminar}
+        titulo={`¿Eliminar a ${instructor?.nombre_completo ?? 'este instructor'}?`}
+        mensaje="Se eliminará su cuenta junto con sus asignaciones, tareas, portafolio y notas. Las fichas que dirigía quedarán sin director. Esta acción no se puede deshacer."
+        onCancelar={() => setConfirmandoEliminar(false)}
+        onConfirmar={async () => {
+          await eliminarInstructor(idNum);
+          mostrarExito('Instructor eliminado');
+          router.replace(backHref as never);
+        }}
+      />
+
+      <HojaVidaModal
+        visible={verHoja && !!instructor?.hoja_vida_url}
+        onClose={() => setVerHoja(false)}
+        nombreInstructor={instructor?.nombre_completo ?? ''}
+        url={instructor?.hoja_vida_url ?? null}
+        nombreArchivo={nombreHojaCompleto ?? 'hoja_de_vida'}
+        subiendo={subiendoHoja}
+        onReemplazar={elegirYSubirHoja}
+      />
+
       <ExitButton />
     </VictoriaScreenShell>
   );
 }
+
+const extra = StyleSheet.create({
+  eliminar: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#9b2c2c',
+    borderRadius: 50,
+    paddingVertical: 11,
+    paddingHorizontal: 20,
+    marginTop: 24,
+  },
+  eliminarTexto: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+});

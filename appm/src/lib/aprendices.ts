@@ -1,6 +1,6 @@
 import { API_BASE_URL } from '@/lib/api-config';
 import { getToken } from '@/lib/auth';
-import { mensajeDeError } from '@/lib/api-error';
+import { mensajeDeError, mensajeDeRespuesta } from '@/lib/api-error';
 
 /** Refleja schemas/usuario.py::UsuarioResponse */
 export type Usuario = {
@@ -113,5 +113,8 @@ export async function eliminarAprendiz(idUsuario: number): Promise<void> {
     method: 'DELETE',
     headers: await authHeaders(false),
   });
-  if (!r.ok) throw new Error('No se pudo eliminar el aprendiz.');
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    throw new Error(mensajeDeRespuesta(r.status, d.detail, 'No se pudo eliminar el aprendiz.'));
+  }
 }

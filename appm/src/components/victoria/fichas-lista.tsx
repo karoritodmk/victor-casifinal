@@ -3,12 +3,15 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
+import { ArchivoCard } from '@/components/victoria/archivo-card';
+import { ConfirmarEliminarModal } from '@/components/victoria/confirmar-eliminar-modal';
 import { FichaFormModal } from '@/components/victoria/ficha-form-modal';
 import { VictoriaScreenShell } from '@/components/victoria/screen-shell';
 import { useVictoriaToast } from '@/components/victoria/toast';
 import { ExitButton, FilterChip, PaneHeader, PillButton, SearchPill } from '@/components/victoria/ui';
 import { VictoriaColors } from '@/constants/victoria-theme';
 import type { Jornada } from '@/lib/coordinador';
+import { eliminarFicha } from '@/lib/fichas';
 import { styles } from './fichas-lista.styles';
 
 /** Una ficha lista para mostrar, sin importar de qué endpoint venga. */
@@ -26,6 +29,9 @@ export type FichaItem = {
   fecha_inicio: string;
   fecha_fin: string;
   num_aprendices?: number;
+  /** Documento adjunto (PDF/Word), si la pantalla que arma la lista lo conoce. */
+  archivo_url?: string | null;
+  archivo_nombre?: string | null;
 };
 
 type Filtro = Jornada | 'sin';
@@ -88,6 +94,8 @@ export function FichasLista({
   const [busqueda, setBusqueda] = useState('');
   const [expandida, setExpandida] = useState<number | null>(null);
   const [modalFicha, setModalFicha] = useState(false);
+  const [fichaEditando, setFichaEditando] = useState<number | null>(null);
+  const [fichaPorEliminar, setFichaPorEliminar] = useState<FichaItem | null>(null);
 
   const lista = items ?? [];
   const cuenta = (f: Filtro) => lista.filter((i) => (i.jornada ?? 'sin') === f).length;
@@ -170,6 +178,9 @@ export function FichasLista({
                       {ficha.num_aprendices !== undefined ? (
                         <Text style={styles.detailLine}>Aprendices: {ficha.num_aprendices}</Text>
                       ) : null}
+                      {ficha.archivo_url ? (
+                        <ArchivoCard nombre={ficha.archivo_nombre} url={ficha.archivo_url} />
+                      ) : null}
                     </View>
                   ) : null}
 
@@ -197,6 +208,18 @@ export function FichasLista({
                       onPress={() =>
                         router.push(`/victoria/coordinador/fichas/${ficha.id_ficha}/competencias` as never)
                       }
+                    />
+                    <PillButton
+                      label="Modificar"
+                      icon="create-outline"
+                      variant="light"
+                      onPress={() => setFichaEditando(ficha.id_ficha)}
+                    />
+                    <PillButton
+                      label="Eliminar"
+                      icon="trash-outline"
+                      variant="danger"
+                      onPress={() => setFichaPorEliminar(ficha)}
                     />
                   </View>
                 </View>
@@ -227,6 +250,33 @@ export function FichasLista({
         onCreada={(numero) => {
           onRecargar();
           mostrarExito(`Ficha ${numero} creada con éxito`);
+        }}
+      />
+
+      <FichaFormModal
+        visible={fichaEditando !== null}
+        idFichaEditar={fichaEditando}
+        onClose={() => setFichaEditando(null)}
+        programas={programas}
+        onCreada={() => {}}
+        onActualizada={(numero) => {
+          onRecargar();
+          mostrarExito(`Ficha ${numero} modificada con éxito`);
+        }}
+      />
+
+      <ConfirmarEliminarModal
+        visible={fichaPorEliminar !== null}
+        titulo={`¿Eliminar la ficha ${fichaPorEliminar?.id_ficha ?? ''}?`}
+        mensaje="Se eliminarán también sus tareas, entregas y asignaciones de instructores, y su documento adjunto. Los aprendices no se borran: quedarán sin ficha. Esta acción no se puede deshacer."
+        onCancelar={() => setFichaPorEliminar(null)}
+        onConfirmar={async () => {
+          if (!fichaPorEliminar) return;
+          const numero = fichaPorEliminar.id_ficha;
+          await eliminarFicha(numero);
+          setExpandida(null);
+          onRecargar();
+          mostrarExito(`Ficha ${numero} eliminada`);
         }}
       />
     </VictoriaScreenShell>

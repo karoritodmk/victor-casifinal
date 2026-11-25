@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 
 import { ArchivoCard } from '@/components/victoria/archivo-card';
+import { ConfirmarEliminarModal } from '@/components/victoria/confirmar-eliminar-modal';
 import { HorarioEditor } from '@/components/victoria/horario-editor';
 import { VictoriaScreenShell } from '@/components/victoria/screen-shell';
 import { useVictoriaToast } from '@/components/victoria/toast';
@@ -30,6 +31,7 @@ import { useRoleGuard } from '@/lib/role-guard';
 import {
   actualizarSede,
   crearSede,
+  eliminarSede,
   quitarArchivoSede,
   subirArchivoSede,
   type SedeInput,
@@ -88,6 +90,7 @@ export default function CoordinadorSedesScreen() {
   const [errorModal, setErrorModal] = useState<string | null>(null);
   const [leyendoArchivo, setLeyendoArchivo] = useState(false);
   const [exitoGuardado, setExitoGuardado] = useState(false);
+  const [sedePorEliminar, setSedePorEliminar] = useState<SedeResumen | null>(null);
 
 
   const cargar = useCallback(() => {
@@ -393,6 +396,12 @@ export default function CoordinadorSedesScreen() {
                         router.push(`/victoria/coordinador/sedes/${sede.id_sede}/instructores` as never)
                       }
                     />
+                    <PillButton
+                      label="Eliminar"
+                      icon="trash-outline"
+                      variant="danger"
+                      onPress={() => setSedePorEliminar(sede)}
+                    />
                   </View>
                 </View>
               );
@@ -410,6 +419,25 @@ export default function CoordinadorSedesScreen() {
       </View>
 
       <ExitButton />
+
+      <ConfirmarEliminarModal
+        visible={sedePorEliminar !== null}
+        titulo={`¿Eliminar la sede "${sedePorEliminar?.nombre ?? ''}"?`}
+        mensaje="Se eliminará la sede y su archivo adjunto. Los programas e instructores que pertenecen a ella no se borran: quedarán sin sede asignada. Esta acción no se puede deshacer."
+        onCancelar={() => setSedePorEliminar(null)}
+        onConfirmar={async () => {
+          if (!sedePorEliminar) return;
+          const id = sedePorEliminar.id_sede;
+          await eliminarSede(id);
+          setExpandida(null);
+          setDetalles((prev) => {
+            const { [id]: _quitada, ...resto } = prev;
+            return resto;
+          });
+          mostrarExito('Sede eliminada');
+          cargar();
+        }}
+      />
 
       <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={cerrarModal}>
         <Pressable style={styles.modalBackdrop} onPress={cerrarModal}>

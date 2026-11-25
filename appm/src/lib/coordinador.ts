@@ -100,6 +100,10 @@ export type ProgramaSede = {
   nombre: string;
   descripcion: string | null;
   nivel_formacion: string | null;
+  url_programa: string | null;
+  id_coordinacion: number | null;
+  archivo_url: string | null;
+  archivo_nombre: string | null;
 };
 
 /** Cuerpo de POST/PUT /sedes/{id}/programas (la coordinación la resuelve el servidor). */
@@ -108,6 +112,7 @@ export type ProgramaSedeInput = {
   descripcion?: string;
   nivel_formacion?: string;
   url_programa?: string;
+  id_coordinacion?: number;
 };
 
 export type Jornada = 'diurna' | 'nocturna' | 'mixta';

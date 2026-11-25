@@ -79,7 +79,10 @@ export async function eliminarSede(id: number): Promise<void> {
     method: 'DELETE',
     headers: await authHeaders(false),
   });
-  if (!r.ok) throw new Error('No se pudo eliminar la sede.');
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    throw new Error(mensajeDeRespuesta(r.status, d.detail, 'No se pudo eliminar la sede.'));
+  }
 }
 
 /** Adjunta (o reemplaza) el documento PDF/Word de una sede. */

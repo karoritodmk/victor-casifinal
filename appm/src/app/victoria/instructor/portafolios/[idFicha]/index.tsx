@@ -17,6 +17,14 @@ import {
   PortafolioFicha,
   subirAdjunto,
 } from '@/lib/instructor';
+// ⚠️ Ajusta la ruta al nombre real del archivo de lib donde pegaste
+// elegirListado / subirListadoAprendices (el que tiene EXTENSIONES_LISTADO).
+import {
+  elegirListado,
+  MENSAJE_FORMATOS_LISTADO,
+  ResultadoListado,
+  subirListadoAprendices,
+} from '@/lib/aprendices-carga';
 import { useRoleGuard } from '@/lib/role-guard';
 import { styles, modalStyles } from './index.styles';
 
@@ -165,6 +173,10 @@ function AñadirAprendizModal({
     null
   );
 
+  // Carga masiva (CSV / TSV / TXT / XLSX)
+  const [subiendoListado, setSubiendoListado] = useState(false);
+  const [resultadoListado, setResultadoListado] = useState<ResultadoListado | null>(null);
+
   function set<K extends keyof typeof form>(campo: K, valor: string) {
     setForm((prev) => ({ ...prev, [campo]: valor }));
   }
@@ -184,7 +196,23 @@ function AñadirAprendizModal({
     setNombreArchivo(null);
     setError(null);
     setCredenciales(null);
+    setResultadoListado(null);
     onClose();
+  }
+
+  async function handleListado() {
+    setError(null);
+    try {
+      const asset = await elegirListado();
+      if (!asset) return; // canceló
+      setSubiendoListado(true);
+      const resultado = await subirListadoAprendices(idFicha, asset);
+      setResultadoListado(resultado);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo cargar el listado.');
+    } finally {
+      setSubiendoListado(false);
+    }
   }
 
   async function handleAdjuntar() {
@@ -259,7 +287,36 @@ function AñadirAprendizModal({
               </Pressable>
             </View>
 
-            {credenciales ? (
+            {resultadoListado ? (
+              <View style={modalStyles.successBox}>
+                <Text style={modalStyles.successTitle}>
+                  Carga terminada: {resultadoListado.creados.length} aprendices creados ✅
+                </Text>
+                {resultadoListado.errores.length > 0 ? (
+                  <>
+                    <Text style={modalStyles.successLine}>
+                      {resultadoListado.errores.length} con error:
+                    </Text>
+                    {resultadoListado.errores.map((e) => (
+                      <Text key={e.fila} style={modalStyles.successHint}>
+                        Fila {e.fila}: {e.error}
+                      </Text>
+                    ))}
+                  </>
+                ) : null}
+                <Text style={modalStyles.successHint}>
+                  Los aprendices ingresan con su número de documento y la contraseña temporal.
+                </Text>
+                <Pressable
+                  style={modalStyles.submitBtn}
+                  onPress={() => {
+                    onCreado();
+                    limpiarYCerrar();
+                  }}>
+                  <Text style={modalStyles.submitText}>Listo</Text>
+                </Pressable>
+              </View>
+            ) : credenciales ? (
               <View style={modalStyles.successBox}>
                 <Text style={modalStyles.successTitle}>Aprendiz creado ✅</Text>
                 <Text style={modalStyles.successLine}>Documento: {credenciales.documento}</Text>
@@ -278,6 +335,22 @@ function AñadirAprendizModal({
               </View>
             ) : (
               <>
+                {/* Carga masiva desde archivo plano */}
+                <Pressable
+                  style={modalStyles.attachBox}
+                  onPress={handleListado}
+                  disabled={subiendoListado}>
+                  {subiendoListado ? (
+                    <ActivityIndicator color="#556b5c" />
+                  ) : (
+                    <>
+                      <Ionicons name="document-text-outline" size={22} color="#556b5c" />
+                      <Text style={modalStyles.attachText}>Cargar listado de aprendices (CSV)</Text>
+                      <Text style={modalStyles.attachText}>{MENSAJE_FORMATOS_LISTADO}</Text>
+                    </>
+                  )}
+                </Pressable>
+
                 <TextInput
                   value={form.nombre}
                   onChangeText={(v) => set('nombre', v)}
@@ -343,6 +416,7 @@ function AñadirAprendizModal({
                   style={[modalStyles.input, modalStyles.textarea]}
                 />
 
+                {/* Adjunto de un solo aprendiz (documento) */}
                 <Pressable style={modalStyles.attachBox} onPress={handleAdjuntar} disabled={subiendo}>
                   {subiendo ? (
                     <ActivityIndicator color="#556b5c" />
@@ -350,7 +424,7 @@ function AñadirAprendizModal({
                     <>
                       <Ionicons name="cloud-upload-outline" size={22} color="#556b5c" />
                       <Text style={modalStyles.attachText}>
-                        {nombreArchivo ?? 'Cargar archivo/datos del aprendiz'}
+                        {nombreArchivo ?? 'Adjuntar documento del aprendiz'}
                       </Text>
                     </>
                   )}

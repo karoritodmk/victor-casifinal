@@ -75,9 +75,27 @@ def borrar_usuario(
     db: Session = Depends(get_db),
     usuario_actual: Usuario = Depends(require_coordinador),
 ):
-    exito = services.eliminar_usuario(db, id_usuario)
-    if not exito:
+    objetivo = db.query(Usuario).filter(Usuario.id_usuario == id_usuario).first()
+    if not objetivo:
         raise HTTPException(status_code=404, detail="No se encontró el Usuario que deseas eliminar")
+
+    if objetivo.id_usuario == usuario_actual.id_usuario:
+        raise HTTPException(status_code=400, detail="No puedes eliminar tu propia cuenta.")
+
+    # Desde estas pantallas solo se eliminan aprendices e instructores. Las
+    # cuentas de coordinador no se borran por aquí.
+    rol = (objetivo.rol.nombre_rol or "").strip().lower() if objetivo.rol else ""
+    if rol not in ("aprendiz", "instructor"):
+        raise HTTPException(status_code=403, detail="Solo se pueden eliminar cuentas de aprendices e instructores.")
+
+    try:
+        services.eliminar_usuario(db, id_usuario)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede eliminar: la cuenta todavía tiene información que depende de ella.",
+        )
     return {"message": f"Usuario con ID {id_usuario} eliminado correctamente"}
 
 
@@ -87,13 +105,21 @@ def generar_password_temporal(numero_documento: str) -> str:
     dejar de ser fácil de comunicar. El aprendiz debe cambiarla luego."""
     return f"Sena@{numero_documento}"
 
+def require_coordinador_o_instructor(
+    usuario_actual: Usuario = Depends(get_current_active_user),
+) -> Usuario:
+    rol = (usuario_actual.rol.nombre_rol or "").strip().lower() if usuario_actual.rol else ""
+    if rol not in ("coordinador", "instructor"):
+        raise HTTPException(status_code=403, detail="No tienes permisos para cargar aprendices.")
+    return usuario_actual
+
 
 @router.post("/carga-masiva", tags=["Usuarios"])
 def cargar_aprendices_desde_archivo(
-       id_ficha: int = Form(...),
-       archivo: UploadFile = File(...),
-       db: Session = Depends(get_db),
-       usuario_actual: Usuario = Depends(require_coordinador),
-   ):
-       """Crea varios aprendices de una ficha desde un archivo .csv, .tsv, .txt o .xlsx."""
-       return carga_masiva_service.procesar_archivo(db, id_ficha, archivo)
+    id_ficha: int = Form(...),
+    archivo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(require_coordinador_o_instructor),
+):
+    return carga_masiva_service.procesar_archivo(db, id_ficha, archivo)
+

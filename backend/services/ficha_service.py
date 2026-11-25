@@ -1,7 +1,8 @@
 from sqlalchemy.orm import Session
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, UploadFile
 from models.ficha import Ficha
 from schemas.ficha import FichaCreate
+from core.uploads import guardar_documento, borrar_adjunto, nombre_para_mostrar
 
 
 class FichaService:
@@ -43,6 +44,39 @@ class FichaService:
 
     def eliminar_ficha(self, id_ficha: int):
         ficha = self.obtener_ficha_por_id(id_ficha)
+        url_archivo = ficha.archivo_url
         self.db.delete(ficha)
         self.db.commit()
+        if url_archivo:
+            borrar_adjunto(url_archivo)  # no dejar el documento huérfano en disco
         return {"mensaje": "Ficha eliminada exitosamente."}
+
+    async def adjuntar_archivo(self, id_ficha: int, archivo: UploadFile):
+        """Adjunta (o reemplaza) el documento PDF/Word de la ficha."""
+        ficha = self.obtener_ficha_por_id(id_ficha)
+        nombre = nombre_para_mostrar(archivo, "documento")
+        url_nueva = await guardar_documento(archivo)
+        url_vieja = ficha.archivo_url
+        try:
+            ficha.archivo_url = url_nueva
+            ficha.archivo_nombre = nombre
+            self.db.commit()
+            self.db.refresh(ficha)
+        except Exception:
+            self.db.rollback()
+            borrar_adjunto(url_nueva)
+            raise
+        if url_vieja:
+            borrar_adjunto(url_vieja)  # el documento anterior se reemplaza
+        return ficha
+
+    def quitar_archivo(self, id_ficha: int):
+        ficha = self.obtener_ficha_por_id(id_ficha)
+        url_vieja = ficha.archivo_url
+        ficha.archivo_url = None
+        ficha.archivo_nombre = None
+        self.db.commit()
+        self.db.refresh(ficha)
+        if url_vieja:
+            borrar_adjunto(url_vieja)
+        return ficha

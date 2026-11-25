@@ -31,10 +31,6 @@ def crear_programa(data: ProgramaCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="El id_ficha, id_proyecto o id_competencia indicado no existe.")
 
 
-def listar_programas(id_sede: int | None = None, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_active_user)):
-    return ProgramaService(db).obtener_programas(id_sede)
-
-
 @router.get("/{id_programa}", response_model=ProgramaResponse)
 def obtener_programa(id_programa: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_active_user)):
     return ProgramaService(db).obtener_programa_por_id(id_programa)

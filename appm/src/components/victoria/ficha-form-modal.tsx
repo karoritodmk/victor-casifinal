@@ -13,7 +13,15 @@ import {
 
 import { VictoriaColors } from '@/constants/victoria-theme';
 import type { Usuario } from '@/lib/aprendices';
-import { crearFicha } from '@/lib/fichas';
+import { elegirDocumento, formatearTamano, type DocumentoElegido } from '@/lib/documentos';
+import {
+  actualizarFicha,
+  crearFicha,
+  obtenerFicha,
+  quitarArchivoFicha,
+  subirArchivoFicha,
+  type Ficha,
+} from '@/lib/fichas';
 import { obtenerInstructores } from '@/lib/instructores';
 import { styles } from './ficha-form-modal.styles';
 
@@ -48,6 +56,10 @@ type Props = {
   programas?: { id_programa: number; nombre: string }[];
   /** Se llama cuando la ficha quedó creada, con su número. */
   onCreada: (numeroFicha: number) => void;
+  /** Si se pasa, el modal funciona en modo "Modificar ficha" para esa ficha. */
+  idFichaEditar?: number | null;
+  /** Se llama cuando una ficha existente quedó modificada. */
+  onActualizada?: (numeroFicha: number) => void;
 };
 
 /** Campo de fecha: calendario nativo del navegador en web; texto AAAA-MM-DD en móvil. */
@@ -135,8 +147,11 @@ export function FichaFormModal({
   programaNombre,
   programas = [],
   onCreada,
+  idFichaEditar = null,
+  onActualizada,
 }: Props) {
   const programaFijo = idPrograma !== undefined;
+  const editando = idFichaEditar !== null;
   const [numero, setNumero] = useState('');
   const [inicio, setInicio] = useState('');
   const [fin, setFin] = useState('');
@@ -149,6 +164,10 @@ export function FichaFormModal({
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [exito, setExito] = useState(false);
+  const [fichaActual, setFichaActual] = useState<Ficha | null>(null);
+  const [cargandoFicha, setCargandoFicha] = useState(false);
+  const [documentoNuevo, setDocumentoNuevo] = useState<DocumentoElegido | null>(null);
+  const [quitarDocumento, setQuitarDocumento] = useState(false);
 
   // Cada vez que se abre: formulario limpio y lista de instructores al día.
   useEffect(() => {
@@ -164,19 +183,64 @@ export function FichaFormModal({
     setError(null);
     setGuardando(false);
     setExito(false);
+    setFichaActual(null);
+    setDocumentoNuevo(null);
+    setQuitarDocumento(false);
     obtenerInstructores()
       .then(setInstructores)
       .catch(() => setInstructores([]));
-  }, [visible]);
+
+    // Modo modificar: se pide la ficha completa y se rellena el formulario.
+    if (idFichaEditar !== null) {
+      setCargandoFicha(true);
+      obtenerFicha(idFichaEditar)
+        .then((f) => {
+          setFichaActual(f);
+          setNumero(String(f.id_ficha));
+          setInicio((f.fecha_inicio ?? '').slice(0, 10));
+          setFin((f.fecha_fin ?? '').slice(0, 10));
+          setHorario(f.horario ?? null);
+          setTrimestre(
+            f.trimestre && (TRIMESTRES as readonly string[]).includes(f.trimestre)
+              ? (f.trimestre as Trimestre)
+              : null
+          );
+          setIdDirector(f.id_director ?? null);
+          setIdProgramaSel(f.id_programa ?? null);
+        })
+        .catch((err: any) => setError(err?.message ?? 'No se pudo cargar la ficha.'))
+        .finally(() => setCargandoFicha(false));
+    }
+  }, [visible, idFichaEditar]);
 
   const director = instructores.find((i) => i.id_usuario === idDirector);
   const programaElegido = programas.find((p) => p.id_programa === idProgramaSel);
   const idProgramaFinal = programaFijo ? idPrograma : idProgramaSel;
 
+  const documentoActual =
+    !documentoNuevo && !quitarDocumento && fichaActual?.archivo_url ? fichaActual.archivo_nombre : null;
+
+  async function elegirArchivo() {
+    setError(null);
+    try {
+      const asset = await elegirDocumento(); // solo PDF / Word, máx. 15 MB
+      if (!asset) return;
+      setDocumentoNuevo(asset);
+      setQuitarDocumento(false);
+    } catch (err: any) {
+      setError(err?.message ?? 'No se pudo elegir el documento.');
+    }
+  }
+
+  function quitarArchivo() {
+    setDocumentoNuevo(null);
+    if (fichaActual?.archivo_url) setQuitarDocumento(true);
+  }
+
   async function guardar() {
     setError(null);
     const num = numero.trim();
-    if (!/^\d{7}$/.test(num)) {
+    if (!editando && !/^\d{7}$/.test(num)) {
       setError('El número de la ficha debe tener exactamente 7 dígitos.');
       return;
     }
@@ -193,26 +257,68 @@ export function FichaFormModal({
       return;
     }
     setGuardando(true);
+
+    // 1) La ficha.
     try {
-      await crearFicha({
-        id_ficha: Number(num),
-        estado: 'activa',
-        fecha_inicio: inicio,
-        fecha_fin: fin,
-        trimestre: trimestre ?? undefined,
-        horario: horario ?? undefined,
-        id_programa: idProgramaFinal,
-        id_director: idDirector ?? undefined,
-      } as any); // `horario` existe en el backend; si tu FichaInput aún no lo declara, el cast evita el error de tipos.
-      setExito(true); // el botón se pone verde con ✓
-      await new Promise((r) => setTimeout(r, 900));
-      onClose();
-      onCreada(Number(num));
+      if (editando && idFichaEditar !== null) {
+        await actualizarFicha(idFichaEditar, {
+          id_ficha: idFichaEditar,
+          estado: fichaActual?.estado ?? 'activa',
+          fecha_inicio: inicio,
+          fecha_fin: fin,
+          trimestre: trimestre ?? undefined,
+          horario: horario ?? undefined,
+          id_programa: idProgramaFinal,
+          id_director: idDirector ?? undefined,
+        });
+      } else {
+        await crearFicha({
+          id_ficha: Number(num),
+          estado: 'activa',
+          fecha_inicio: inicio,
+          fecha_fin: fin,
+          trimestre: trimestre ?? undefined,
+          horario: horario ?? undefined,
+          id_programa: idProgramaFinal,
+          id_director: idDirector ?? undefined,
+        });
+      }
     } catch (err: any) {
-      setError(err?.message ?? 'No se pudo crear la ficha.');
-    } finally {
+      setError(err?.message ?? (editando ? 'No se pudo modificar la ficha.' : 'No se pudo crear la ficha.'));
       setGuardando(false);
+      return;
     }
+
+    // 2) El documento (necesita que la ficha ya exista).
+    const numeroFinal = editando && idFichaEditar !== null ? idFichaEditar : Number(num);
+    let avisoDocumento: string | null = null;
+    try {
+      if (documentoNuevo) {
+        await subirArchivoFicha(numeroFinal, documentoNuevo);
+      } else if (quitarDocumento && fichaActual?.archivo_url) {
+        await quitarArchivoFicha(numeroFinal);
+      }
+    } catch (err: any) {
+      avisoDocumento = err?.message ?? 'No se pudo guardar el documento.';
+    }
+
+    if (avisoDocumento) {
+      // La ficha sí quedó guardada: se avisa y se refresca la lista.
+      setError(
+        `La ficha se guardó, pero el documento no: ${avisoDocumento} Puedes reintentarlo desde Modificar ficha.`
+      );
+      setGuardando(false);
+      if (editando) onActualizada?.(numeroFinal);
+      else onCreada(numeroFinal);
+      return;
+    }
+
+    setExito(true); // el botón se pone verde con ✓
+    await new Promise((r) => setTimeout(r, 900));
+    setGuardando(false);
+    onClose();
+    if (editando) onActualizada?.(numeroFinal);
+    else onCreada(numeroFinal);
   }
 
   return (
@@ -225,8 +331,10 @@ export function FichaFormModal({
             showsVerticalScrollIndicator={false}>
             <View style={styles.header}>
               <View>
-                <Text style={styles.title}>Añadir Ficha</Text>
-                <Text style={styles.subtitle}>Fichas · {programaFijo ? programaNombre : 'SENA'}</Text>
+                <Text style={styles.title}>{editando ? 'Modificar Ficha' : 'Añadir Ficha'}</Text>
+                <Text style={styles.subtitle}>
+                  {editando ? `Ficha ${idFichaEditar}` : `Fichas · ${programaFijo ? programaNombre : 'SENA'}`}
+                </Text>
               </View>
               <Pressable onPress={onClose} hitSlop={8} accessibilityLabel="Cerrar">
                 <Ionicons name="close" size={22} color={VictoriaColors.textOnLight} />
@@ -242,8 +350,10 @@ export function FichaFormModal({
               placeholderTextColor="#6b7d70"
               keyboardType="numeric"
               maxLength={7}
-              style={styles.input}
+              editable={!editando}
+              style={[styles.input, editando && styles.inputBloqueado]}
             />
+            {cargandoFicha ? <ActivityIndicator color={VictoriaColors.darkGreen} /> : null}
 
             <CampoFecha valor={inicio} onChange={setInicio} etiqueta="Fecha de inicio" />
             <CampoFecha valor={fin} onChange={setFin} etiqueta="Fecha de fin" />
@@ -350,6 +460,39 @@ export function FichaFormModal({
               </ScrollView>
             </Selector>
 
+            <Text style={styles.etiqueta}>Documento de la ficha (opcional):</Text>
+            {documentoNuevo || documentoActual ? (
+              <View style={styles.docRow}>
+                <Ionicons name="document-text-outline" size={22} color="#556b5c" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.docName} numberOfLines={1}>
+                    {documentoNuevo ? documentoNuevo.name : documentoActual}
+                  </Text>
+                  <Text style={styles.docMeta}>
+                    {documentoNuevo
+                      ? `Se subirá al guardar${documentoNuevo.size ? ' · ' + formatearTamano(documentoNuevo.size) : ''}`
+                      : 'Documento actual'}
+                  </Text>
+                </View>
+                <Pressable onPress={elegirArchivo} hitSlop={8} accessibilityLabel="Reemplazar documento">
+                  <Ionicons name="swap-horizontal-outline" size={20} color={VictoriaColors.textOnLight} />
+                </Pressable>
+                <Pressable onPress={quitarArchivo} hitSlop={8} accessibilityLabel="Quitar documento">
+                  <Ionicons name="trash-outline" size={20} color="#b3261e" />
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable style={styles.dropzone} onPress={elegirArchivo} accessibilityRole="button">
+                <Ionicons name="cloud-upload-outline" size={24} color="#556b5c" />
+                <Text style={styles.dropzoneText}>
+                  {quitarDocumento
+                    ? 'Se quitará al guardar. Toca para elegir otro documento'
+                    : 'Adjuntar documento PDF o Word'}
+                </Text>
+                <Text style={styles.docMeta}>.pdf, .doc, .docx · máx. 15 MB</Text>
+              </Pressable>
+            )}
+
             <Pressable
               style={[
                 styles.submit,
@@ -361,15 +504,15 @@ export function FichaFormModal({
               {exito ? (
                 <View style={styles.submitRow}>
                   <Ionicons name="checkmark-circle" size={20} color={VictoriaColors.white} />
-                  <Text style={styles.submitText}>¡Ficha creada!</Text>
+                  <Text style={styles.submitText}>{editando ? '¡Ficha modificada!' : '¡Ficha creada!'}</Text>
                 </View>
               ) : guardando ? (
                 <View style={styles.submitRow}>
                   <ActivityIndicator color={VictoriaColors.white} size="small" />
-                  <Text style={styles.submitText}>Creando ficha...</Text>
+                  <Text style={styles.submitText}>{editando ? 'Guardando cambios...' : 'Creando ficha...'}</Text>
                 </View>
               ) : (
-                <Text style={styles.submitText}>Añadir Ficha</Text>
+                <Text style={styles.submitText}>{editando ? 'Guardar cambios' : 'Añadir Ficha'}</Text>
               )}
             </Pressable>
           </ScrollView>

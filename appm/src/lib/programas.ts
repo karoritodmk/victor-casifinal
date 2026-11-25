@@ -85,7 +85,10 @@ export async function eliminarPrograma(id: number): Promise<void> {
     method: 'DELETE',
     headers: await authHeaders(false),
   });
-  if (!r.ok) throw new Error('No se pudo eliminar el programa.');
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    throw new Error(mensajeDeRespuesta(r.status, d.detail, 'No se pudo eliminar el programa.'));
+  }
 }
 
 /** Adjunta (o reemplaza) el documento PDF/Word de un programa. */

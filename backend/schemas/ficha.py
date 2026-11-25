@@ -53,6 +53,8 @@ class FichaUpdate(BaseModel):
 
 class FichaResponse(FichaBase):
     id_ficha: int
+    archivo_url: Optional[str] = None
+    archivo_nombre: Optional[str] = None
 
     class Config:
         from_attributes = True

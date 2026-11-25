@@ -1,7 +1,7 @@
 import { API_BASE_URL } from '@/lib/api-config';
 import { getToken } from '@/lib/auth';
 import { Usuario } from '@/lib/aprendices';
-import { mensajeDeError } from '@/lib/api-error';
+import { mensajeDeError, mensajeDeRespuesta } from '@/lib/api-error';
 
 export type InstructorManualInput = {
   nombre: string;
@@ -62,5 +62,8 @@ export async function eliminarInstructor(idUsuario: number): Promise<void> {
     method: 'DELETE',
     headers: await authHeaders(false),
   });
-  if (!r.ok) throw new Error('No se pudo eliminar el instructor.');
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    throw new Error(mensajeDeRespuesta(r.status, d.detail, 'No se pudo eliminar el instructor.'));
+  }
 }
